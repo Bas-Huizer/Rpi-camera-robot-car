@@ -1,0 +1,117 @@
+#! /usr/bin/python
+
+# Example how to use the HC-SR04 4 pins ultrasonic reader 
+# TRIGGER is connected to GPIO-23. ECHO is connected to GPIO 24
+# The trigger sends out 8 ultrasonic pulses in a micro second (time.sleep 0.00001)
+#
+# Since the sensor operates at 5V, use a power divider scheme (R1 = 1KOhm, R2 = 2KOhm) or use both level power pins and a transistor
+#
+# Because the code changes GPIO values it has to be executed as root:
+# First: chmod +x usonic.py
+# Then:  sudo ./usonic.py
+#
+# The routine first searches for 2 readings with a difference < 15%
+# Then it searches for [x_times] other readings in the same range and calculates the average
+# (Basic and straight forward coding)
+#
+# In total it takes 2.5 - 3 seconds, if that's to long for other processes, one can limit the amount of readings
+# Don't reduce the sleeping time in the routine: a faster loop results in more failures (and takes longer in the end as well)
+# Getting 3 readings in range, takes between 0.5 and 0.9 seconds
+#
+# Note: For obvious reasons, don't use less than 3 readings
+# Note: By logic one could take 3 readings and drop the one most out of range.
+#       Trying that I couldn' increase speed and recieved worse results
+# Note: The transducers have a wide angle of sensitivity. In a cluttered environment one might get shorter readings and/or more scattering
+# Note: Measurements below 2 cm will give strange results anyhow
+
+# Initializing
+import time
+import argparse             # Working on the Dawn Robotics Pi-camera-bot through the robots webserver
+import py_websockets_bot 
+import RPi.GPIO as GPIO
+
+GPIO.setmode(GPIO.BCM)      # Use the GPIO numbers i.s.o. the pin numbers
+TRIG = 23
+ECHO = 24
+GPIO.setwarnings (False)    # To suppress "RuntimeWarning: This channel is already in use, continuing anyway"
+GPIO.setup(TRIG,GPIO.OUT)   # Initialize trigger
+GPIO.output(TRIG,False)
+GPIO.setup(ECHO,GPIO.IN)
+time.sleep (2.0)            # GPIO needs time before any routine can start
+
+def get_range ():
+    GPIO.output(TRIG,True)
+    time.sleep(0.0001)
+    GPIO.output(TRIG,False)
+    pulse_start = time.time()
+    pulse_end = time.time ()
+    # Keep on reading until the pulse echo arrives
+    while GPIO.input(ECHO) == 0:
+        pulse_start = time.time()
+    while GPIO.input(ECHO) == 1:
+        pulse_end = time.time()
+    # Calculate the distance
+    pulse_duration = pulse_end - pulse_start
+    distance = pulse_duration * 17150
+    distance = round(distance, 1)
+    return distance
+def get_average_range(x_times):
+    start_time = time.time ()
+    count = 1
+    reading_count = 0
+    distance_cum = 0
+    while count <= x_times:
+        reading_count += 1
+        distance_read = get_range()
+        if count == 1:
+            distance_save = distance_read
+        else:
+            if count == 2:
+                if distance_read > (1.15*distance_save) or distance_read < (0.85*distance_save):
+                    print "First readings out of range (1cm)", distance_save, "and", distance_read, "; both readings ignored"
+                    distance_cum = 0
+                    count = 1    
+        if distance_read > (1.1*distance_save) or distance_read < (0.9*distance_save):
+            if count > 2:
+                print "Reading", reading_count, "Unexpected value:", distance_read, "; reading ignored"
+        else:        
+            distance_cum += distance_read
+            print "Reading", reading_count, "Count #" ,count, "Value", distance_read, "cm,Total counted", distance_cum, "cm"
+            count += 1
+        time.sleep (0.2)
+    distance_avg = distance_cum / (count-1)
+    distance_avg = round(distance_avg, 1)
+    print ""
+    print "Average distance =", distance_avg, "cm"
+    end_time = time.time()
+    duration = end_time - start_time
+    duration = round(duration, 1)
+    print "Routine duration:", duration, "sec"
+    return distance_avg
+#---------------------------------------------------------------------------------------------------        
+if __name__ == "__main__":
+
+    # Set up a parser for command line arguments
+    parser = argparse.ArgumentParser( "Gets sensor readings from the robot and displays them" )
+    parser.add_argument( "hostname", default="localhost", nargs='?', help="The ip address of the robot" )
+    args = parser.parse_args()
+ 
+    # Connect to the robot
+    bot = py_websockets_bot.WebsocketsBot( args.hostname )
+
+    # Procedure: call for a range measurement # times and calculate the average
+    range_readings = []
+    count =1
+    x_times = 10
+    while count <=8:   
+        range_measured = get_average_range(x_times)
+        range_readings.append(range_measured)
+        count += 1
+        x_times -= 1
+    print ""
+    print "Ranges returned: ", range_readings
+    
+    # Reset GPIO pins
+    GPIO.cleanup()
+    # Disconnect from the robot
+    bot.disconnect()
