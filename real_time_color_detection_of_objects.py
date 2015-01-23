@@ -1,9 +1,10 @@
 #! /usr/bin/python
 
 # This script detects objects in a video stream (blue rectangles A4 size)
-# It's meant as kernel for a sign-following robot script
+# It's meant as kernel for a sign-following robot script Part of the logical flow: find a blue rectangle in a video stream
 # Inspirational site: http://roboticssamy.blogspot.nl/ (balancing robot, reading signs and following lines by vision)
-# Tip: use cv2.imgshow to follow the image handling step by step (comment all steps and start with nr 1)  
+#
+# Note: insert cv2.imgshow statements to follow the image handling step by step (comment all steps and start with nr 1)  
 
 import time
 import argparse
