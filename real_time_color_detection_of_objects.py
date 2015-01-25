@@ -104,7 +104,7 @@ if __name__ == "__main__":
                             centroid_x_first_found = centroid_x_save
                             centroid_y_first_found = centroid_y_save
                             found_for_the_first_time = 0
-                        print 'First coordinates found =',centroid_x_first_found, centroid_x_first_found
+                        print 'First coordinates found =',centroid_x_first_found, centroid_y_first_found
             cv2.waitKey( 1 )
     except KeyboardInterrupt:
         pass    # Catch Ctrl+C
