@@ -98,6 +98,7 @@ def search_sign():
     centroid_y_save = 0
     area_save = 0.0
     image, image_time = bot.get_latest_camera_image()
+    #image, image_time = bot.get_latest_small_camera_image()
     #cv2.imshow('Original',image)
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)                                             # 0 - Set color range to search for blue shapes
     lower_blue = np.array([110,50,80])
@@ -108,7 +109,7 @@ def search_sign():
     gray_image = cv2.cvtColor(blurred_image, cv2.COLOR_BGR2GRAY )                            # 4 - Convert to Gray (needed for binarizing)
     ret3,threshold_image = cv2.threshold(gray_image,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU) # 5 - Binarizing (Otsus threshold)
     edged_image = cv2.Canny(threshold_image,threshold1=90, threshold2=190)                   # 6 - Find edges of all shapes
-    cv2.imshow('step-6 - Canny', edged_image)                                                
+    #cv2.imshow('step-6 - Canny', edged_image)                                                
     contours, hierarchy = cv2.findContours(edged_image,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)# 7 - Find contours of all shapes
     objects_found = len(contours)                                                            # 8 - Filter on size and shape
     if objects_found >= 1 and objects_found < 50:               
@@ -158,10 +159,12 @@ flag_ready = 0                                                                  
 robot_status = 0
 min_pan_angle = 0.0
 max_pan_angle = 180.0
+list_motor_angle = [-90,-75,-60,-45,-30,-15,0,15,30,45,60,75,90]
 #---------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     
     bot.start_streaming_camera_images()
+    #bot.start_streaming_small_camera_images()
     ###################################################################################################### Start of SEARCH_SIGN routine
     bot.centre_neck()
     pan_angle = 90.0
@@ -207,7 +210,7 @@ if __name__ == "__main__":
     centroid_x_keep = centroid_x_save
     centroid_y_keep = centroid_y_save
     angle_to_turn = -1*(pan_angle_save - 90)
-    motor_angle = min(list, key=lambda x:abs(x-my_item))
+    motor_angle = min(list_motor_angle, key=lambda x:abs(x-angle_to_turn))
     robot_status = move_degr(motor_angle)
     bot.centre_neck()
     # ------------------------------------------------------------------------------------------------ Moving car
