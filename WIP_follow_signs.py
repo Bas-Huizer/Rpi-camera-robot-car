@@ -4,6 +4,7 @@ import time
 import argparse
 import cv2
 import numpy as np
+import math
 import py_websockets_bot
 import py_websockets_bot.mini_driver
 import py_websockets_bot.robot_config
@@ -190,7 +191,7 @@ flag_ready = 0                                                                  
 robot_status = 0
 min_pan_angle = 65.0
 max_pan_angle = 115.0
-range_limit = 25
+range_limit = 32                                                                      # If closer, the sign will be to big
 #---------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     
@@ -218,7 +219,8 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------------------------------------ init move
     centroid_image_x = int(image_width/2)
     centroid_image_y = int(image_height/2)
-    print 'Image:', image_width, 'x', image_height, 'center =', centroid_image_x, centroid_image_y
+    #min_pan_angle = 75.0
+    #max_pan_angle = 105.0
     sign_found = 0
     ride_switch = 1
     tilt_angle_save = tilt_angle
@@ -227,12 +229,13 @@ if __name__ == "__main__":
     while range_returned > range_limit:
         motor_speed_right = 12.0
         motor_speed_left = 12.0
+        bot.update()
     # ------------------------------------------------------------------------------------------------ Focus view
         if centroid_x_returned != centroid_image_x:
             differance_x = round(((centroid_image_x - centroid_x_returned) * 0.0264583),1)
             tangent_x = differance_x / range_returned 
             pan_angle = pan_angle_returned + round(math.degrees(math.atan(tangent_x)),0)
-            #time.sleep(0.5)
+            pan_angle_send = pan_angle
         if centroid_y_returned != centroid_image_y:
             differance_y = round(((centroid_image_y - centroid_y_returned) * 0.0264583),1)
             tangent_y = differance_y / range_returned 
@@ -253,7 +256,6 @@ if __name__ == "__main__":
         #bot.set_motor_speeds( motor_speed_left, motor_speed_right )
         time.sleep(2.0)
     # ------------------------------------------------------------------------------------------------ Get new image coordinates
-        pan_angle_send = pan_angle
         while sign_found == 0:
             sign_found, pan_angle_returned, centroid_x_returned, centroid_y_returned, area_returned,image_height, image_width = search_sign(pan_angle_send)
             if sign_found == 0:
@@ -261,11 +263,14 @@ if __name__ == "__main__":
                 time.sleep(1.0)
             time.sleep(0.5)
         print 'New coordinates =', centroid_x_returned, centroid_y_returned
+        sign_found = 0
     # ------------------------------------------------------------------------------------------------ Get new range measurement                            
         range_returned = get_range()
         print 'New range =', range_returned
+        time.sleep(1.0)
     ################################################################################################## End of MOVE_TO_SIGN Start of READ_SIGN
     
     # ------------------------------------------------------------------------------------------------ Finalize    
     #cv2.destroyAllWindows()
     bot.disconnect()
+
