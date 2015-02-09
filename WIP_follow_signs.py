@@ -32,67 +32,10 @@ def look_around (pan_angle_return, pan_switch, ride_switch):
         else:
             pan_switch = 'RIGHT'
             pan_angle_send = pan_angle_return
-            if ride_switch == 0:
-                robot_status = move_degr(30)
+#            if ride_switch == 0:
+#                robot_status = move_degr(30)
     return pan_angle_send, pan_switch
 # -------------------------------------------------------------------------------------------------------- Motor routines
-def stop_moving ():
-    flag_ready = 0
-    bot.set_motor_speeds( 0.0, 0.0 )
-    return flag_ready
-def move_degr (motor_angle):                                                                             # Not elegant; using experimental values
-    flag_ready = 1
-    if motor_angle == 180:
-        bot.set_motor_speeds( -12.0, -12.0 )
-    if motor_angle == 90:
-        bot.set_motor_speeds( -12.0, 12.0 )
-        time.sleep(1.3)
-        stop_moving()
-    if motor_angle == 75:
-        bot.set_motor_speeds( -12.0, 12.0 )
-        time.sleep(1.1)
-        stop_moving()
-    if motor_angle == 60:
-        bot.set_motor_speeds( -11.0, 11.0 )
-        time.sleep(1.0)
-        stop_moving()
-    if motor_angle == 45:
-        bot.set_motor_speeds( -10.0, 10.0 )
-        time.sleep(1.0)
-        stop_moving()
-    if motor_angle == 30:
-        bot.set_motor_speeds( -10.0, 10.0 )
-        time.sleep(0.6)
-        stop_moving()
-    if motor_angle == 15:
-        bot.set_motor_speeds( -10.0, 10.0 )
-        time.sleep(0.3)
-        stop_moving()
-    if motor_angle == -90:
-        bot.set_motor_speeds( 12.0, -12.0 )
-        time.sleep(1.2)
-        stop_moving()
-    if motor_angle == -75:
-        bot.set_motor_speeds( 12.0, -12.0 )
-        time.sleep(1.0)
-        stop_moving()
-    if motor_angle == -60:
-        bot.set_motor_speeds( 11.0, -11.0 )
-        time.sleep(0.8)
-        stop_moving()
-    if motor_angle == -45:
-        bot.set_motor_speeds( 11.0, -11.0 )
-        time.sleep(1.0)
-        stop_moving()
-    if motor_angle == -30:
-        bot.set_motor_speeds( 10.0, -10.0 )
-        time.sleep(0.8)
-        stop_moving()
-    if motor_angle == -15:
-        bot.set_motor_speeds( 10.0, -10.0 )
-        time.sleep(0.3)
-        stop_moving()
-    return flag_ready
 # -------------------------------------------------------------------------------------------------------- Ultrasonic range 
 def get_range ():
     bot.update()
@@ -103,30 +46,35 @@ def get_range ():
     return distance
 # -------------------------------------------------------------------------------------------------------- Image search
 def search_sign(pan_angle_send):
+    time_start = time.time()
     pan_angle_return = pan_angle_send
     bot.update()
     sign_found = 0
     centroid_x_save = 0
     centroid_y_save = 0
     area_save = 0.0
+    leftmost = (0,0)
+    bottommost = (0,0)
+    topmost = (0,0)
+    rightmost = (0,0)
     image, image_time = bot.get_latest_camera_image()
     image_height, image_width = image.shape[:2]
-    #image = cv2.resize(image-l,None,fx=0.25, fy=0.25, interpolation = cv2.INTER_CUBIC)
     #cv2.imshow('Original', image)
     #cv2.waitKey(1)
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)                                              # 0 - Set color range to search for blue shapes
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)                                               # 0 - Set color range to search for blue shapes
     lower_blue = np.array([110,50,80])
     upper_blue = np.array([131,119,255])
-    mask_image = cv2.inRange(hsv, lower_blue, upper_blue)                                     # 1 - Mask only blue
-    result_image = cv2.bitwise_and(image,image, mask= mask_image)                             # 2 - Convert masked color to white. Rest to black 
-    blurred_image = cv2.bilateralFilter(result_image,9,75,75)                                 # 3 - Optional: Blurring the result to de-noise
-    gray_image = cv2.cvtColor(blurred_image, cv2.COLOR_BGR2GRAY )                             # 4 - Convert to Gray (needed for binarizing)
-    #ret3,threshold_image = cv2.threshold(gray_image,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU) # 5 - Optional: Binarizing (Otsus threshold)
-    edged_image = cv2.Canny(gray_image,threshold1=90, threshold2=190)                         # 6 - Find edges of all shapes
-    cv2.imshow('step-6 - Canny', edged_image)                                                
+    mask_image = cv2.inRange(hsv, lower_blue, upper_blue)                                      # 1 - Mask only blue
+    result_image = cv2.bitwise_and(image,image, mask= mask_image)                              # 2 - Convert masked color to white. Rest to black 
+    #cv2.destroyWindow(mask_image)
+    result_image = cv2.bilateralFilter(result_image,9,75,75)                                   # 3 - Optional: Blurring the result to de-noise
+    result_image = cv2.cvtColor(result_image, cv2.COLOR_BGR2GRAY )                             # 4 - Convert to Gray (needed for binarizing)
+    #ret3,threshold_image = cv2.threshold(gray_image,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)  # 5 - Optional: Binarizing (Otsus threshold)
+    result_image = cv2.Canny(result_image,threshold1=90, threshold2=190)                       # 6 - Find edges of all shapes
+    cv2.imshow('Edged', result_image)                                                
     cv2.waitKey(1)
-    contours, hierarchy = cv2.findContours(edged_image,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE) # 7 - Find contours of all shapes
-    objects_found = len(contours)                                                             # 8 - Filter on size and shape
+    contours, hierarchy = cv2.findContours(result_image,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE) # 7 - Find contours of all shapes
+    objects_found = len(contours)                                                              # 8 - Filter on size and shape
     if objects_found >= 1 and objects_found < 50:               
         loop_count = 0
         loop_count = int(loop_count)
@@ -137,20 +85,20 @@ def search_sign(pan_angle_send):
             cnt = contours[loop_count]
             M = cv2.moments(cnt)
             area = cv2.contourArea(cnt)
-            epsilon = 0.1*cv2.arcLength(cnt,True)
+            epsilon = 0.1*cv2.arcLength(cnt,True)                                              # 9 - Calculate centroid coordinates
             approx = cv2.approxPolyDP(cnt,epsilon,True)
             corners_shape = len (approx)
             if corners_shape == 4:
                 if area > 5000:
                     centroid_x = int(M['m10']/M['m00'])
                     centroid_y = int(M['m01']/M['m00'])
-                    if loop_count == 0:
+                    if loop_count == 0:                                                        # 10 - Keep the largest rectangle
                         loop_count_save = loop_count
                         rectangle_count += 1
                         area_save = area
                         centroid_x_save = centroid_x
                         centroid_y_save = centroid_y
-                    elif area > area_save:
+                    elif area < area_save:
                         loop_count_save = loop_count
                         rectangle_count += 1
                         centroid_x_save = centroid_x
@@ -158,9 +106,17 @@ def search_sign(pan_angle_send):
                         area_save = area
             loop_count += 1
         if rectangle_count > 0:
+            print 'rectangle', rectangle_count, 'of', objects_found, 'objects'
             sign_found = 1
-            #print 'Shape',loop_count_save, ', largest rectangle of', rectangle_count,', size', area_save, ', coordinates', centroid_x_save, centroid_y_save
-    return sign_found, pan_angle_return, centroid_x_save, centroid_y_save, area_save,image_height, image_width
+            cnt = contours[loop_count_save]
+            leftmost = tuple(cnt[cnt[:,:,0].argmin()][0])
+            rightmost = tuple(cnt[cnt[:,:,0].argmax()][0])
+            bottommost = tuple(cnt[cnt[:,:,1].argmax()][0])
+            topmost = tuple(cnt[cnt[:,:,1].argmin()][0])
+            time_stop = time.time()
+            print leftmost, rightmost, topmost, bottommost
+            print 'Duration ', round((time_stop - time_start),1), 'sec'
+    return sign_found, pan_angle_return, centroid_x_save, centroid_y_save, area_save,image_height, image_width, leftmost, rightmost, bottommost, topmost
 #--------------------------------------------------------------------------------------------------------- Set up a parser for command line arguments
 parser = argparse.ArgumentParser( "Gets images from the robot without callback" )
 parser.add_argument( "hostname", default="localhost", nargs='?', help="The ip address of the robot" )
@@ -191,12 +147,16 @@ flag_ready = 0                                                                  
 robot_status = 0
 min_pan_angle = 65.0
 max_pan_angle = 115.0
-range_limit = 32                                                                      # If closer, the sign will be to big
+range_limit = 15                                                                      # If closer, the sign will be to big
+leftmost = (0,0)
+bottommost = (0,0)
+rightmost = (0,0)
+topmost = (0,0)
 #---------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     
     bot.start_streaming_camera_images()
-    time.sleep(1.0)
+    time.sleep(2.0)
     ###################################################################################################### Start of SEARCH_SIGN routine
     bot.centre_neck()
     pan_angle = 90.0
@@ -207,13 +167,13 @@ if __name__ == "__main__":
     tilt_angle = 90.0
     sign_found = 0
     while sign_found == 0:
-        sign_found, pan_angle_returned, centroid_x_returned, centroid_y_returned, area_returned,image_height, image_width = search_sign(pan_angle_send)
-        #time.sleep(0.5)
+        sign_found, pan_angle_returned, centroid_x_returned, centroid_y_returned, area_returned,image_height, image_width,leftmost, rightmost, bottommost, topmost = search_sign(pan_angle_send)
         if sign_found == 0:
             pan_angle_send, pan_switch = look_around(pan_angle_returned, pan_switch, ride_switch)
-            time.sleep(1.0)
-        time.sleep(0.5)       
+            time.sleep(0.01)
+        time.sleep(0.5)                                                               # To avoid overload (Search routine takes 0.4 sec)
     print 'Found coord.', centroid_x_returned, centroid_y_returned,'neck angle', pan_angle_returned, 'current angle', pan_angle_send
+    print 'Image size  ', image_width, image_height
     #time.sleep(2.0)
     ################################################################################################## End of SEARCH_SIGN Start of MOVE_TO_SIGN
     # ------------------------------------------------------------------------------------------------ init move
@@ -225,24 +185,25 @@ if __name__ == "__main__":
     ride_switch = 1
     tilt_angle_save = tilt_angle
     range_returned = get_range()
+    test_range_returned = range_returned
     print 'First range =', range_returned
-    while range_returned > range_limit:
+    while test_range_returned > range_limit:
         motor_speed_right = 12.0
         motor_speed_left = 12.0
         bot.update()
     # ------------------------------------------------------------------------------------------------ Focus view
-        if centroid_x_returned != centroid_image_x:
+        if centroid_x_returned != centroid_image_x and centroid_x_returned != 0:
             differance_x = round(((centroid_image_x - centroid_x_returned) * 0.0264583),1)
             tangent_x = differance_x / range_returned 
             pan_angle = pan_angle_returned + round(math.degrees(math.atan(tangent_x)),0)
             pan_angle_send = pan_angle
-        if centroid_y_returned != centroid_image_y:
+        if centroid_y_returned != centroid_image_y and centroid_y_returned != 0:
             differance_y = round(((centroid_image_y - centroid_y_returned) * 0.0264583),1)
             tangent_y = differance_y / range_returned 
-            tilt_angle = tilt_angle_save + round(math.degrees(math.atan(tangent_y)),0)
+            tilt_angle = tilt_angle_save - round(math.degrees(math.atan(tangent_y)),0)
             tilt_angle_save = tilt_angle
         bot.set_neck_angles( pan_angle_degrees=pan_angle, tilt_angle_degrees=tilt_angle)
-        #time.sleep(0.5)
+        #time.sleep(0.01)
         print 'Adjusted angles =', pan_angle, tilt_angle
     # ------------------------------------------------------------------------------------------------ Determine direction adjustment
         if pan_angle > 100:
@@ -254,21 +215,36 @@ if __name__ == "__main__":
         # Will be inserted later on
     # ------------------------------------------------------------------------------------------------ Moving car
         #bot.set_motor_speeds( motor_speed_left, motor_speed_right )
-        time.sleep(2.0)
-    # ------------------------------------------------------------------------------------------------ Get new image coordinates
-        while sign_found == 0:
-            sign_found, pan_angle_returned, centroid_x_returned, centroid_y_returned, area_returned,image_height, image_width = search_sign(pan_angle_send)
-            if sign_found == 0:
-                pan_angle_send, pan_switch = look_around(pan_angle_returned, pan_switch, ride_switch)
-                time.sleep(1.0)
-            time.sleep(0.5)
-        print 'New coordinates =', centroid_x_returned, centroid_y_returned
-        sign_found = 0
+        #time.sleep(2.0)
     # ------------------------------------------------------------------------------------------------ Get new range measurement                            
         range_returned = get_range()
-        print 'New range =', range_returned
-        time.sleep(1.0)
+        print 'New range =', range_returned, test_range_returned
+        time.sleep(0.01)
+    # ------------------------------------------------------------------------------------------------ Get new image coordinates
+        while sign_found == 0:
+            sign_found, pan_angle_returned, centroid_x_returned, centroid_y_returned, area_returned,image_height, image_width, leftmost, rightmost, bottommost, topmost = search_sign(pan_angle_send)
+            time.sleep(0.1)
+        print 'New coordinates =', centroid_x_returned, centroid_y_returned
+        sign_found = 0
+        test_range_returned -= 5
     ################################################################################################## End of MOVE_TO_SIGN Start of READ_SIGN
+    print 'leftmost', leftmost, 'rightmost',rightmost,'bottommost', bottommost, 'topmost',topmost,
+    print 'center', centroid_x_returned, centroid_y_returned
+    print 'area', area_returned
+    x = leftmost [0]
+    x1 = rightmost [0]
+    y = bottommost [1]
+    y1 = topmost[1]
+    w = x1 - x
+    h = y - y1
+    image, image_time = bot.get_latest_camera_image()
+    print image.shape
+    print x, x1, y, y1,
+    #roi= cv2.rectangle(image,(x,y),(x+w,y+h),(0,255,0),2)
+    roi= cv2.rectangle(image,(x,y1),(x1,y),(0,255,0),2)                                              # top_left => bottom_right
+    image[x:y1, x1:y] = roi                                                                          # Location in image 
+    cv2.imshow ('?',image)                                                                           # uncomment these 3 lines for visual feedback 
+    cv2.waitKey(1)                                                                                   # while testing the routine
     
     # ------------------------------------------------------------------------------------------------ Finalize    
     #cv2.destroyAllWindows()
