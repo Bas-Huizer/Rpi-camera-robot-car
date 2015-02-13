@@ -31,7 +31,6 @@ def mse(imageA, imageB):                                                 # Mean 
 
 if __name__ == "__main__":
 
-    reading_error = 0
     signright = cv2.imread('signright.jpg',0)
     if signright != None:
         cv2.imshow( "SR", signright )
