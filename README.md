@@ -5,3 +5,7 @@ If and when I learn how to put pictures and/or presentations in github, I submit
 In the mean time: if you find anything usefull, please help your self!
 If you can help me out with structuring my linear scripts, I would be more than obliged with a pull request ;-0)
 
+The script WIP_follow_signs works for the openCV part. I experienced the importance of the light settings. It is about homgeneous light: no direct lightning on the signs, no shades (or fully in shade).
+
+
+
