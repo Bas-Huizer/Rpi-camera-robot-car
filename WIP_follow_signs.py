@@ -141,26 +141,18 @@ def move_to_sign(centroid_x_returned, centroid_y_returned,
        and centroid_x_returned != 0:
         differance_x = round(((centroid_image_x - centroid_x_returned) * 0.0264583),3)
         tangent_x = differance_x / range_returned 
-        x_corr = round(math.degrees(math.atan(tangent_x)),1)
-        pan_angle = pan_angle_returned + x_corr
-        print 'image x', centroid_image_x
-        print 'centr x', centroid_x_returned
-        print 'diff x', differance_x
-        print 'tangent - x', tangent_x
-        print 'correctie x =', x_corr
-        pan_angle_return = pan_angle
+        pan_angle = pan_angle_returned + round(math.degrees(math.atan(tangent_x)),1)
+    else:
+        pan_angle = pan_angle_returned
+    pan_angle_return = pan_angle
     if centroid_y_returned != centroid_image_y \
        and centroid_y_returned != 0:
         differance_y = round(((centroid_image_y - centroid_y_returned) * 0.0264583),3)
         tangent_y = differance_y / range_returned 
-        y_corr = round(math.degrees(math.atan(tangent_y)),1)
-        tilt_angle = tilt_angle_returned + y_corr
-        print 'image y', centroid_image_y
-        print 'centr y', centroid_y_returned
-        print 'diff y', differance_y
-        print 'tangent - y', tangent_y
-        print 'correctie y=', y_corr
-        tilt_angle_return = tilt_angle
+        tilt_angle = tilt_angle_returned - round(math.degrees(math.atan(tangent_y)),1)
+    else:
+        tilt_angle = tilt_angle_returned
+    tilt_angle_return = tilt_angle
     bot.set_neck_angles( pan_angle_degrees=pan_angle,
                          tilt_angle_degrees=tilt_angle)
     #time.sleep(0.01)
@@ -272,21 +264,26 @@ def compare_images(centroid_x_returned, centroid_y_returned, contour_save):
     resized = cv2.resize(warped_image, (w,h),
                          interpolation=cv2.INTER_AREA)
     cv2.imshow ('resized', resized)
-    output=signRight                                                                   # create window for bitwise output
     cv2.waitKey(1)
-    diff2=cv2.countNonZero(resized)                     # not needed only for testing
-    print 'count resized',diff2, 'threshold used', thrh #
-    diff3=cv2.countNonZero(signRight)                   #
-    print 'count signRight', diff3                      # 
+    output=signRight                                                                   # create window for bitwise output
     v_1 = mse(resized,signRight)
-    v_2 = mse(resized,signLeft)
-    v_3 = mse(resized,signTurn)
-    v_4 = mse(resized,signStop)
     print round((v_1),1)
-    print round((v_2),1)
-    print round((v_3),1)
+    if v_1 > 5000:
+        v_2 = mse(resized,signLeft)
+        print round((v_2),1)    
+        if v_2 > 5000:
+            v_3 = mse(resized,signTurn)
+            if v_3 > 5000:
+                print round((v_3),1)
+                next_action = 'STOP'
+            else:
+                next_action = 'TURN'
+        else:
+            next_action = 'LEFT'
+    else:
+        next_action = 'RIGHT'
+    v_4 = mse(resized,signStop)
     print round((v_4),1)
-    next_action = ' '
     return next_action
 #--------------------------------------------------------------------------------------
 # INITIALIZE_RB1
@@ -323,6 +320,7 @@ robot_status = 0
 min_pan_angle = 65.0
 max_pan_angle = 115.0
 range_limit = 15                                                                      # If closer, the sign will be to big
+next_action = 'START'
 #--------------------------------------------------------------------------------------
 if __name__ == "__main__":
 
@@ -378,12 +376,10 @@ if __name__ == "__main__":
                      range_returned)
         test_loop += 1
     # --------------------------------------------------------------------------------
-    # READ_SIGN (until match)
+    # READ_SIGN (until match) and ACT_ON_SIGN (next action or stop)
     # --------------------------------------------------------------------------------
     next_action = compare_images(centroid_x_returned, centroid_y_returned, contour_save)
-    # --------------------------------------------------------------------------------
-    # ACT_ON_SIGN (next action or stop)
-    # --------------------------------------------------------------------------------
+    print '!!', next_action,'!!', next_action,'!!', next_action,'!!', next_action,'!!' 
     # turn, centr neck, ......
     wait=raw_input()
     # ---------------------------------------------------------------------------------- Finalize    
