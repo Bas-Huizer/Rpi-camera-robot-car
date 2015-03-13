@@ -42,22 +42,24 @@ def look_around (pan_angle_returned):
     else:
         pan_angle = min_pan_angle
         pan_angle_return = pan_angle
-        bot.set_motor_speeds( -23.0, 22.0 )                                           # Turn left for approx 45 degr
-        time.sleep(0.5)
-        bot.set_motor_speeds( 0.0, 0.0 )
+        bot.set_motor_speeds( -motor_speed, motor_speed )                                           # Corrolates to PWM 50 Hz
+        time.sleep(0.4)                                                               # Turn left for approx 45 degr
     bot.set_neck_angles( pan_angle_degrees=pan_angle,
                              tilt_angle_degrees=tilt_angle)
+    time.sleep (0.001)
     return pan_angle_return
 # -------------------------------------------------------------------------------------
 # Ultrasonic range routine
 #
 # Returns: Range measured
 # -------------------------------------------------------------------------------------
-def get_range ():
+def get_range ():                                                                     # TO DO: reference range through camera
     bot.update()
     status_dict, read_time = bot.get_robot_status_dict()
     sensor_dict = status_dict[ "sensors" ]
     data = sensor_dict[ "ultrasonic" ][ "data" ]
+    if data > 100:
+        data = 100
     range_return = data
     return range_return
 # -------------------------------------------------------------------------------------
@@ -72,10 +74,12 @@ def search_sign():
     centroid_y_save = 0
     area_save = 0.0
     image, _ = bot.get_latest_camera_image()
+    #cv2.imshow('img', image)
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)                                      # 0 - Set color range to search for blue shapes
-    lower_blue = np.array([110,50,80])
-    upper_blue = np.array([131,119,255])
+    lower_blue = np.array([106,30,101]) 
+    upper_blue = np.array([130,102,246])
     mask_image = cv2.inRange(hsv, lower_blue, upper_blue)                             # 1 - Mask only blue
+    #cv2.imshow('mask', mask_image)
     result_image = cv2.bitwise_and(image,image, mask= mask_image)                     # 2 - Convert masked color to white. Rest to black 
     result_image = cv2.bilateralFilter(result_image,9,75,75)                          # 3 - Optional: Blurring the result to de-noise
     result_image = cv2.cvtColor(result_image, cv2.COLOR_BGR2GRAY )                    # 4 - Convert to Gray (needed for binarizing)
@@ -98,7 +102,7 @@ def search_sign():
             epsilon = 0.1*cv2.arcLength(cnt,True)                                     
             approx = cv2.approxPolyDP(cnt,epsilon,True)
             if len (approx) == 4:
-                if area > 10000:
+                if area > 5000:
                     if loop_count == 0:                                               # 8 - Keep the smallest aledged rectangle
                         rectangle_count += 1
                         contour_save = approx
@@ -125,10 +129,19 @@ def search_sign():
 def move_to_sign(centroid_x_returned, centroid_y_returned,
                  pan_angle_returned, tilt_angle_returned,
                  range_returned):
-    motor_speed_right = 24.0
-    motor_speed_left = 25.0
+    motor_speed = 50.0
+    #left_motor_scaling = -(0.5*1.66667)
+    #motor_speed_left += left_motor_scaling
+    # --------------------------------------------------------------------------------- Detect obstacles and react
     bot.update()
-    # --------------------------------------------------------------------------------- Focus view
+    status_dict, read_time = bot.get_robot_status_dict()                              # Currently just emergency break
+    sensor_dict = status_dict[ "sensors" ]                                            # Evasion routine will be filled in later
+    sensor_data = sensor_dict[ "digital" ][ "data" ]
+    if sensor_data != 24:                                                             # Test for any IR sensor signal
+       bot.set_motor_speeds( -0.0, 0.0 )
+       print 'Obstacle detected!'
+       wait = raw_input ()
+    # --------------------------------------------------------------------------------- Focus view on centroid coordinates
     if centroid_x_returned != centroid_image_x \
        and centroid_x_returned != 0:
         differance_x = round(((centroid_image_x - centroid_x_returned) * 0.0264583),3)
@@ -147,24 +160,31 @@ def move_to_sign(centroid_x_returned, centroid_y_returned,
     tilt_angle_return = tilt_angle
     bot.set_neck_angles( pan_angle_degrees=pan_angle,
                          tilt_angle_degrees=tilt_angle)
-    # --------------------------------------------------------------------------------- Determine direction adjustment
-    if pan_angle > 100:
-        motor_speed_left = 23.0                                                       # minus 2
-    if pan_angle < 80:
-        motor_speed_right = 22.0
-    # --------------------------------------------------------------------------------- Detect obstacles and react
-    # Will be inserted later on
-    # --------------------------------------------------------------------------------- Moving car
-    #bot.set_motor_speeds( motor_speed_left, motor_speed_right )
+    # --------------------------------------------------------------------------------- Adjust motor speeds to direction
+    angle_to_turn = pan_angle - 90.0                                                  
+    angle_radians = abs(angle_to_turn)* 0.017453
+    differential_distance = round ((14.8 * angle_radians),1)                          # Length of arc to turn (angle times bot-width
+    outer_wheel_distance = range_returned + differential_distance                     # Total distance to run for the outer wheel
+    perc_outer_wheel_distance =  round ((outer_wheel_distance / range_returned),1)    
+    half_diff_speed = ((perc_outer_wheel_distance * motor_speed)-motor_speed)/2
+    if angle_to_turn < 0:                                                             # Curve to right
+        bot.set_motor_speeds (motor_speed + half_diff_speed), (motor_speed -
+                                                               half_diff_speed)
+    else:                                                                             # Curve to left
+        bot.set_motor_speeds (motor_speed - half_diff_speed), (motor_speed +
+                                                               half_diff_speed)
+    time.sleep (2.0)                                                                  # interval before next adjustment
     # --------------------------------------------------------------------------------- Get new range measurement                            
     range_returned = get_range()
     # --------------------------------------------------------------------------------- Get new centroid coordinates
     sign_found = 0
     while sign_found == 0:
         sign_found,centroid_x_returned,centroid_y_returned, contour_save=search_sign()
-        if sign_found == 0:
+        if sign_found == 0:                                                           # When focus is lost
+            bot.update()
             bot.set_motor_speeds (0.0, 0.0)
             pan_angle_returned = look_around(pan_angle_returned)
+        time.sleep (0.001)
     return range_returned, centroid_x_returned, centroid_y_returned, contour_save, \
            pan_angle_return, tilt_angle_return
 # -------------------------------------------------------------------------------------
@@ -303,7 +323,7 @@ time.sleep( 0.1 )                                                               
 # ------------------------------------------------------------------------------------- Initializing global variables
 min_pan_angle = 65.0
 max_pan_angle = 115.0
-range_limit = 25                                                                      # When move in to close, the sign will be to big
+range_limit = 40                                                                      # When move in to close, the sign will be to big
 next_action = 'START'
 #--------------------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -324,23 +344,22 @@ if __name__ == "__main__":
         tilt_angle = 90.0
         tilt_angle_returned = tilt_angle
         sign_found = 0
-        print 'INITIAL SEARCH'
+        #print 'INITIAL SEARCH'
         while sign_found == 0:
             sign_found, \
                         centroid_x_returned, centroid_y_returned, \
                         contour_save = search_sign()
             if sign_found == 0:
                 pan_angle_returned = look_around(pan_angle_returned)
-        print centroid_x_returned, centroid_y_returned
+            time.sleep (0.001)
+        print 'c-x/c-y/pan/tilt'
+        print centroid_x_returned, centroid_y_returned, pan_angle_returned, tilt_angle_returned
         # --------------------------------------------------------------------------------
         # MOVE_TO_SIGN (until <= 25 cm)
         # --------------------------------------------------------------------------------
         sign_found = 0
         range_returned = get_range()
-        test_loop = 0
-        print 'MOVE TO SIGN'
-        while test_loop <= 10:                                                             # For testing without motors
-        #while range_returned > range_limit:    
+        while range_returned > range_limit:    
             range_returned, \
                             centroid_x_returned, \
                             centroid_y_returned, \
@@ -352,8 +371,8 @@ if __name__ == "__main__":
                          pan_angle_returned,
                          tilt_angle_returned,
                          range_returned)
-            print test_loop, centroid_x_returned, centroid_y_returned, pan_angle_returned, tilt_angle_returned
-            test_loop += 1
+            print 'c-x/c-y/pan/tilt/range'
+            print centroid_x_returned, centroid_y_returned, pan_angle_returned, tilt_angle_returned, range_returned
         # --------------------------------------------------------------------------------
         # READ_SIGN (until match) and ACT_ON_SIGN (next action or stop)
         # --------------------------------------------------------------------------------
@@ -363,13 +382,21 @@ if __name__ == "__main__":
             pass
         if next_action == 'RIGHT':
             print 'RIGHT'
+            bot.set_motor_speeds( motor_speed, -motor_speed )
+            time.sleep(0.8)
         if next_action == 'LEFT':
             print 'LEFT'
+            bot.set_motor_speeds( -motor_speed, motor_speed )
+            time.sleep(0.8)
         if next_action == 'TURN':
             print 'TURN'
+            bot.set_motor_speeds( motor_speed, -motor_speed )
+            time.sleep(0.8)
+            bot.set_motor_speeds( motor_speed, -motor_speed )
+            time.sleep(0.8)            
         if next_action == 'NO MATCH':
             print 'NO MATCH'
-        time.sleep(4.0)
+        time.sleep(3.0)
         cv2.destroyAllWindows()
         bot.update()
     # ---------------------------------------------------------------------------------- Finalize    
