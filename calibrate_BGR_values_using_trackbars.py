@@ -46,53 +46,51 @@ if __name__ == "__main__":
     bot = py_websockets_bot.WebsocketsBot( "192.168.42.1" )
     #----------------------------------------------------------------------------------------------------- Start streaming images from the camera
     bot.start_streaming_camera_images( camera_image_callback )
-    #----------------------------------------------------------------------------------------------------- Run in a loop until the user presses Ctrl+C to quit
-    try:
     #----------------------------------------------------------------------------------------------------- Create trackbars to manipulate the low RGB values
-        img_low = np.zeros((15,512,3), np.uint8)
-        cv2.namedWindow('BGR_low')
-        cv2.createTrackbar('R','BGR_low',85,255,nothing)
-        cv2.createTrackbar('G','BGR_low',50,255,nothing)
-        cv2.createTrackbar('B','BGR_low',110,255,nothing)
-        cv2.imshow('BGR_low',img_low)
-    #----------------------------------------------------------------------------------------------------- Create trackbars to manipulate the low RGB values
-    #                                                                                                      Default is blue range, low: 50,50,110 high: 255,255,130 
-        img_high = np.zeros((15,512,3), np.uint8)
-        cv2.namedWindow('BGR_high')
-        cv2.createTrackbar('R','BGR_high',255,255,nothing)
-        cv2.createTrackbar('G','BGR_high',119,255,nothing)
-        cv2.createTrackbar('B','BGR_high',131,255,nothing)
-        cv2.imshow('BGR_high',img_high)
-    #-----------------------------------------------------------------------------------------------------
-        while True:
-            bot.update()
-            switch_object_found = False
-            if latest_camera_image != None:
-    #----------------------------------------------------------------------------------------------------- get current positions of four trackbars
-                r_low = cv2.getTrackbarPos('R','BGR_low')
-                g_low = cv2.getTrackbarPos('G','BGR_low')
-                b_low = cv2.getTrackbarPos('B','BGR_low')
-                r_high = cv2.getTrackbarPos('R','BGR_high')
-                g_high = cv2.getTrackbarPos('G','BGR_high')
-                b_high = cv2.getTrackbarPos('B','BGR_high')
-                img_low[:] = [b_low,g_low,r_low]
-                img_high[:] = [b_high,g_high,r_high]
-                cv2.imshow('BGR_low',img_low)
-                cv2.imshow('BGR_high',img_high)
-    #----------------------------------------------------------------------------------------------------- 0 - Set color range to search for
-                hsv = cv2.cvtColor(latest_camera_image, cv2.COLOR_BGR2HSV)
-                lower_blue = np.array([b_low,g_low,r_low])
-                upper_blue = np.array([b_high,g_high,r_high])
-    #----------------------------------------------------------------------------------------------------- 1 - Mask only with trackbar values
-                mask_image = cv2.inRange(hsv, lower_blue, upper_blue)
-                cv2.imshow('step-1 - mask', mask_image)
-    #----------------------------------------------------------------------------------------------------- 2 - Convert masked color to white. rest to black 
-                result_image = cv2.bitwise_and(latest_camera_image,latest_camera_image, mask= mask_image)
-                cv2.imshow('step-2 - convert', result_image)
-            cv2.waitKey( 1 )
-    except KeyboardInterrupt:
-        pass    # Catch Ctrl+C
+    img_low = np.zeros((15,512,3), np.uint8)
+    cv2.namedWindow('BGR_low')
+    cv2.createTrackbar('R','BGR_low',85,255,nothing)
+    cv2.createTrackbar('G','BGR_low',50,255,nothing)
+    cv2.createTrackbar('B','BGR_low',110,255,nothing)
+    cv2.imshow('BGR_low',img_low)
+#----------------------------------------------------------------------------------------------------- Create trackbars to manipulate the low RGB values
+#                                                                                                      Default is blue range, low: 50,50,110 high: 255,255,130 
+    img_high = np.zeros((15,512,3), np.uint8)
+    cv2.namedWindow('BGR_high')
+    cv2.createTrackbar('R','BGR_high',255,255,nothing)
+    cv2.createTrackbar('G','BGR_high',119,255,nothing)
+    cv2.createTrackbar('B','BGR_high',131,255,nothing)
+    cv2.imshow('BGR_high',img_high)
+#-----------------------------------------------------------------------------------------------------
+    while True:
+        bot.update()
+        if latest_camera_image != None:
+#----------------------------------------------------------------------------------------------------- get current positions of four trackbars
+            r_low = cv2.getTrackbarPos('R','BGR_low')
+            g_low = cv2.getTrackbarPos('G','BGR_low')
+            b_low = cv2.getTrackbarPos('B','BGR_low')
+            r_high = cv2.getTrackbarPos('R','BGR_high')
+            g_high = cv2.getTrackbarPos('G','BGR_high')
+            b_high = cv2.getTrackbarPos('B','BGR_high')
+            img_low[:] = [b_low,g_low,r_low]
+            img_high[:] = [b_high,g_high,r_high]
+            #cv2.imshow("Low/High", np.hstack([img_low, img_high]))
+            cv2.imshow('BGR_low',img_low)
+            cv2.imshow('BGR_high',img_high)
+#----------------------------------------------------------------------------------------------------- 0 - Set color range to search for
+            hsv = cv2.cvtColor(latest_camera_image, cv2.COLOR_BGR2HSV)
+            lower_blue = np.array([b_low,g_low,r_low])
+            upper_blue = np.array([b_high,g_high,r_high])
+#----------------------------------------------------------------------------------------------------- 1 - Mask only with trackbar values
+            mask_image = cv2.inRange(hsv, lower_blue, upper_blue)
+            cv2.imshow('BGR High', mask_image)
+#----------------------------------------------------------------------------------------------------- 2 - Convert masked color to white. rest to black 
+            result_image = cv2.bitwise_and(latest_camera_image,latest_camera_image, mask= mask_image)
+            cv2.imshow('BGR Low', result_image)
+            #cv2.imshow("Low/High", np.hstack([result_image, mask_image]))
+            if cv2.waitKey( 1 ) & 0xFF == ord ('c'):
+                break
     #----------------------------------------------------------------------------------------------------- Clean-up windows if needed  
-    #cv2.destroyAllWindows()
+    cv2.destroyAllWindows()
+    bot.stop_streaming_camera_images ()
     #----------------------------------------------------------------------------------------------------- Disconnect from the robot
-    bot.disconnect()
